@@ -1,0 +1,154 @@
+---
+title: "Class 26: Assignment"
+author: "Morgan Keeton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+```
+
+
+## Data - Mosquitos
+
+An experiment was conducted by Miami University Biology student, Nikki Berry, looking at the effects of UV radiation and dissolved organic matter (DOM) in water on the survival rates of mosquito larvae, see <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0240261">Dissolved organic matter protects mosquito larvae from damaging solar UV radiation.</a> The relevant data from this experiment are in the file `berryMosquitoData.csv`.
+
+```{r}
+mosquitos <- read.csv("berryMosquitoData.csv")
+glimpse(mosquitos)
+```
+
+<img style="float: right;" src="berryMosquitoPic.jpeg" width="25%"></img>
+
+In the experiment, mosquito larvae (*C.\ pipiens* and *C.\ restuans*) were collected as egg rafts from ovipositing traps. All larvae were homogenously mixed into a large container before being used for the experiment. A random sample of larvae (between 5 and 10) were placed in a dish under some experimental conditions. Some dishes contained clear water (`DOM=0`), while other dishes contained a concentration of Dissolved Organic Matter in the water (`DOM=1`). All dishes were then exposed to two different sources of radiation, a no light (dark) setting (`UVB=0`) and in the presence of an artificial Ultra Violet lamp (`UVB=1`). A visual display of the dishes involved in the experiment is included to the right. 
+
+After 12 hours of exposure to the experimental conditions, the mosquito larvae were scored for survivorship (alive or dead). 
+
+
+
+## Question 1
+
+You should note this is a <u>designed experiment</u> but the underlying response variable is not a measurement. Describe the following:
+
+* Experimental Units: **Mosquito larvae**
+* Factors and levels of study: **the combinations of UV Radiation and Dissolved Organic Matter**
+* Treatments in this experiment: **UV Radiation and Dissolved Organic Matter**
+* The response with respect to the experimental units? **If the Larvae live or Die**
+
+
+
+
+## Question 2
+
+Think back to our discussions from Module 3 (two-factor ANOVA), what is the the appropriate hypothesis we wish to test for this experiment? 
+
+**If the treatments have an effect on the live or death of the mosquito larvae**
+
+
+
+
+## Question 3
+
+Technically we cannot run an ANOVA analysis on this data, but we can use the `anova()` function to get at the underlying hypothesis test of interest.
+
+Fit a main effects logistic regression model called `main_fit`, and a model with interactions, called `int_fit`, where the survivorship is modeled as a function of the two factors of study. Look at the Donner party example in In-class 26 notes for coding help. 
+
+
+```{r}
+main_fit <- glm(cbind(Alive, Dead) ~ DOM + UVB + DOM*UVB, data = mosquitos, family = binomial(link = logit))
+int_fit <- glm(cbind(Alive, Dead) ~ DOM + UVB, data = mosquitos, family = binomial(link = logit))
+```
+
+
+
+## Question 4
+
+Use the `anova()` function to perform an **Analysis of Deviance** (likelihood ratio test) to determine if the interaction between DOM and UVB significantly predicts the survivorship of mosquito larvae. Make sure to include the Likelihood Ratio Test in the `anova()` call.
+
+```{r}
+anova(main_fit, int_fit, test = "LRT")
+```
+
+**With a Chi-squared statistic of -12.015 on 115 and 116 degrees of freedom (p-value = 0.0005), we have enough evidence to conclude that the interaction between DOM and UVB significantly predicts the survivorship of mosquito larvae.**
+
+
+
+
+## Question 5
+
+Look at the coefficients for the fitted *interaction* model in part 3 (use either `summary()` or `coef()`). Use these coefficients to calculate and interpret the odds of mosquito survivorship for all treatments in context. Note, this question is lengthy because of the number of interpretations.
+
+
+```{r}
+coef(main_fit)
+```
+
+**2.8103291 + 0.3537385 + 0(-4.5643482) + 0(3.2103892) = 3.163, which are the odds of a mosquito surviving with just DOM.**
+
+**2.8103291 + 0(0.3537385) + -4.5643482 + 0(3.2103892) = -1.75, which means that the odds of a mosquito surviving with just UVB are negative.**
+
+**2.8103291 + 0(0.3537385) + 0(-4.5643482) + 3.2103892 = 6.02, which means that the odds of a mosquito surviving with both DOM And UVB are positive.**
+
+**2.8103291 + 0.3537385 + -4.5643482 + 3.2103892 = 1.81, which are the odds when the mosquito larvae are exposed to both DOM and UVB and the interaction.**
+
+
+
+## Question 6
+
+Consider the following code chunk. Dig through the R help documentation and/or googling to determine what this code is doing. Make sure that your fitted model in question 2 is named `fit` and to set `eval=TRUE` in the markdown for this code to execute.
+
+```{r, eval=TRUE}
+inv_link <- family(int_fit)$linkinv
+
+treatment_df <- data.frame(Trt = factor(1:4, labels=c("Clear, No UVB", "DOM, No UVB", "Clear UVB", "DOM & UVB") ),
+                           DOM = c(0,1,0,1),
+                           UVB = c(0,0,1,1))
+
+treatment_df <- treatment_df %>%
+  mutate(Pred_log_odds = predict(int_fit, newdata=treatment_df, type="link"),
+         Pred_log_odds_se = predict(int_fit, newdata=treatment_df, type="link", se.fit=TRUE)$se.fit,
+         Pred_prob = inv_link(Pred_log_odds),
+         Pred_prob_hi = inv_link(Pred_log_odds + 2*Pred_log_odds_se),
+         Pred_prob_lo = inv_link(Pred_log_odds - 2*Pred_log_odds_se) )
+```
+
+Specifically, 
+
+* What is `inv_link`?
+
+**inv_link is creating a family for the function by specifying the details of it, such as the GLM. the link is the specification, such as logit**
+
+* What is the `se.fit` that is extracted?
+
+**The se.fit that is extracted is the standard error**
+
+* What is the `Pred_log_odds +/- 2*Pred_log_odds_se` code doing, why can it be used? (Hint: Intro stat question!)
+
+**These are predicting the highest and lowest odds, and it can be used because of the CLT.**
+
+* Why is the `inv_link` call outside the `Pred_log_odds +/- 2*Pred_log_odds_se` rather than calling `inv_link` on `Pred_log_odds` and `Pred_log_odds_se` individually. (Hint: another Intro Stats type question)
+
+**It is called outside, so that we do it inside the whole dataset.**
+
+
+
+
+
+## Question 7
+
+Set `eval=TRUE` for the below code chunk. Interpret the results of the plot and compare it to your findings in Question 5.
+
+```{r, eval=TRUE}
+ggplot(treatment_df, aes(x=Pred_prob, xmin=Pred_prob_lo, xmax=Pred_prob_hi, y=Trt)) +
+  geom_linerange(color="gray65", size=2.5) +
+  geom_point(size=1.45) + 
+  scale_x_continuous(limits=c(0,1)) + 
+  labs(y="Treatments", x="Probability of Survivorship") +
+  theme_bw()
+```
+
+**We can see that the probabilty of surviving with clear DOM and UVB is lower than DOM and no UVB, as we found earlier in question 5 with the odds. However, the probability for both DOM and UVB are lower, which is different than the odds we found earlier. **
+
+

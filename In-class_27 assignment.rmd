@@ -1,0 +1,133 @@
+---
+title: "Class 27: Assignment"
+author: "Morgan Keeton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(tidyverse)
+library(GGally)
+```
+
+
+**Mussel data.** These data contain numbers of species of mussels (`Species`) in 41 rivers and corresponding predictor variables: area (`area`), number of stepping stones (intermediate rivers) to 4 major species-source river systems: Alabama-Coosa (`StepsToAC`), Apalachicola (`StepsToAP`), St. Lawrence (`StepsToSL`), and Savannah (`StepstoSV`)); Nitrate Concentration (`Nitrate`), Hydronium concentration (10^(-pH)) (`Hydronium`), and solid residue (`Residue`). The area variable is also provided in logged form (`logArea`).
+
+Source:  J.J. Sepkoski, Jr., M.A. Rex (1974). "Distribution of Freshwater Mussels: Coastal Rivers as Biogeographic Islands," Systematic Zoology, Vol. 23, #2, pp. 165-188.
+
+```{r}
+mussels <- read.table("mussels1.dat")
+names(mussels) <- c("River", "Species", "Area",
+                    "StepsToAC", "StepsToAP", "StepsToSV", "StepsToSL",
+                    "Nitrate", "Residue", "Hydronium", "logArea")
+head(mussels)
+```
+
+
+
+**ANSWER THE FOLLOWING** with justification based on the output:
+
+----
+
+## Question 1
+
+Make a histogram of the number of species of mussels in these 41 rivers.  What kind of shape does the distribution have?
+
+```{r}
+ggplot(mussels, aes(x=Species) ) + 
+  geom_histogram(binwidth=1)
+```
+
+**ANSWER: The shape appears to be left skewed.** 
+
+
+----
+
+## Question 2
+
+Fit a full Poisson regression model to predict the number of species from the four "stepping stones" variables (StepsToAC, StepsToAP, StepsToSV, StepsToSL), log area, the nitrate, residue, and hydronium variables.  Cite the AIC value for this full model.
+
+```{r}
+fit <- glm(Species ~ StepsToAC + StepsToAP + StepsToSV + StepsToSL + logArea + Nitrate + Residue + Hydronium, data=mussels, family=poisson)
+AIC(fit)
+```
+
+**ANSWER: The AIC of this model is 244.266.** 
+
+
+----
+
+## Question 3
+
+Perform a **forward** stepwise variable selection to settle on which predictors are important for modeling the number of mussel species.  Use the full model from Question 2 as your "scope" in the variable selection.  Which predictors from the full model are removed in the variable selection?
+
+```{r}
+null.fit <- glm(Species ~ 1, data=mussels, family=poisson)     # needed for forward selection
+fit_forward <- step(null.fit, scope=formula(fit), direction="forward", trace=TRUE)
+```
+
+**ANSWER: The variables that were removed are StepsToAP, StepsToSV, and StepsToSL. The AIC here is 240.45.  ** 
+
+
+----
+
+## Question 4
+
+Statistically test if the model in question 2 improves over the simpler model in question 3.
+
+
+```{r}
+anova(fit_forward, fit, test = "LRT")  
+```
+
+**ANSWER: We see that with a Chi-squared statistic of 2.1883 on 3 degrees of freedom (p-value = 0.5343), we see that the model in question 2 does not improve over the simpler model in question 3.** 
+
+----
+
+## Question 5
+
+Perform a goodness-of-fit check by comparing the residual deviance to its degrees of freedom.  Does it suggest a Poisson model is not appropriate?
+
+**ANSWER: 44.237/35 = 1.26, which is close to 1. It is not over 2, so it does not suggest that Poisson model isn't appropriate. ** 
+
+
+----
+
+## Question 6
+
+Calculate and interpret a Pseudo-$R^2$ value for the model fit in question 3. 
+
+```{r}
+summary(fit_forward)
+```
+
+
+**ANSWER: (127.527 / 43) - (46.426 / 38) / sqrt(that same number) = 1.32/ 1.745 = 0.756** 
+
+----
+
+## Question 7
+
+Interpret the intercept and the Hydronium variable coefficient in the model fit in question 3.
+
+**ANSWER: When all other variables are at 0, the hydronium is expected to be at -0.031** 
+
+
+
+----
+
+## Question 8
+
+Use the stepwise model from Question 3 to obtain a model-predicted number of mussel species in the Penobscot River.  Look at the information in the `head(mussel)` output above if you need relevant predictor info for this specific river.
+
+```{r}
+newdata = data.frame(River = "Penobscot", StepsToAC = 33, Residue = 57, Hydronium = 4.0, Nitrate = 9.0407, logArea = 0.8)
+predict(fit_forward, newdata = newdata, type = 'response')
+```
+
+**ANSWER: We would expect the number of species to be 1.64 species. **  
+
+
+
+
+

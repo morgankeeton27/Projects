@@ -1,0 +1,159 @@
+---
+title: "Class 25: Assignment"
+author: "Morgan Keeton"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## Data
+
+**Revisit the Frahmingham Heart Study data set.**  The objective of the Framingham Heart Study was to identify the common factors or characteristics that contribute to CVD by following its development over a long period of time in a large group of participants who had not yet developed overt symptoms of CVD or suffered a heart attack or stroke. 
+The datafile `framingham.txt` contains selected variables for 4,658 participants in the study.  The variables are:
+
+* `age` - subject age in years
+* `sbp` - systolic blood pressure
+* `dbp` - diastolic blood pressure
+* `scl` - serum cholesterol level
+* `bmi` - BMI (Body Mass Index)
+* `chdfate` - Indicator of whether the subject has been diagnosed (1) or not (0) with coronary heart disease
+
+```{r}
+framingham <- read.table("framingham.txt", header=TRUE)
+head(framingham)
+```
+
+Today, we will explore the ability of two variables, age and BMI, ability to predict the prevalence of heart disease.
+
+----
+
+## Question 1
+
+Consider the following 3-dimensional plot. The $x$-axis is the record ages, the $y$-axis is the record BMI values, and the color of the points determines if heart disease is present (dark = yes, heart disease, light = no).
+
+```{r, echo=FALSE, message=FALSE}
+ggplot(framingham, aes(x=age, y=bmi) ) +
+  geom_jitter(shape=21, size=0.9, aes(fill=chdfate) ) +
+  scale_fill_continuous(type="gradient", low="gray90", high="gray10") +
+  theme_bw() + 
+  labs(x="Age (years)", y="BMI", fill="Heart Disease")
+```
+
+Describe any relationships you see in the plot. Namely, how does BMI behave? How does age behave? Does it appear there is a relationship between age, bmi and the prevalence of heart disease?
+
+**The BMI seems to behave reguarly regardless of age, but it does appear that there are higher risks of heart disease as age increases.**
+
+
+
+
+
+## Question 2
+
+Fit a logistic regression model that uses `age` and `bmi`, and the interaction between `age` and `bmi` as predictors of whether a person has been diagnosed with coronary heart disease (you can achieve this with the formula `chdfate ~ age * bmi`).  Provide model output that displays the estimated $\beta$-coefficients.
+
+```{r}
+heart.fit <- glm(chdfate ~ age * bmi, data=framingham, family=binomial(link=logit))
+summary(heart.fit)
+```
+
+
+----
+
+## Question 3
+
+Interpret the intercept to your fitted in terms of the log-odds, odds and probability for the prevalence of heart disease.  Do any of these values have contextual meaning?
+
+**The log odds of having heart disease when the age and bmi are 0 are -8.94. Since they are negative, the log odds of having heart disease when bmi and age are 0 are negative, which means that the odds are less than one. - Log odds**
+
+**The odds are exp(-8.94) = 0.0001, when age and bmi are 0.**
+
+**So the probability of having heart disease when age and bmi are 0 is exp(-8.94)/(1 + exp(-8.94)) =  0.0001- probability**
+
+**These values do not have contextual meaning, because it would be impossible to have a bmi and age of 0, so the intercept and odds have no meaning contextually. - Context**
+
+
+## Question 4
+
+We will now start tackling how to interpret the interaction of two numeric variables.  Consider the following (non-realistic) scenario.
+
+Interpret the effects that a one unit increase of BMI will have on the odds of heart disease for a person who is zero (yes zero) years old.
+
+**0.0001 + exp(0.257) at each increase of one BMI**
+
+
+
+## Question 5
+
+Continuing the idea from question 4. Interpret the effects that a one unit increase of BMI will have on the odds of heart disease for a person who is forty years old (make sure to include information from the interaction term).
+
+**ANSWER HERE** 
+
+
+
+## Question 6
+
+Use the fitted model in question 2 to predict the probability of heart disease for a 50 year old with a BMI of 29.
+
+**ANSWER HERE**
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+## Question 7
+
+Consider the following two plots.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+fake_data <- expand.grid(age=seq(29,67,0.1), bmi=seq(16,58,0.1))
+correct_model <- glm(chdfate ~ age * bmi, data=framingham, family=binomial(link=logit))
+fake_data <- fake_data %>%
+  mutate(prob_heart_disease = predict(correct_model, newdata=fake_data, type="response"))
+
+get_legend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+p1 <- ggplot(fake_data, aes(x=age, y=bmi) ) +
+  geom_tile(aes(fill=prob_heart_disease)) +
+  scale_fill_continuous(type="gradient", low="gray90", high="gray10") +
+  theme_bw() + 
+  labs(x="Age (years)", y="BMI", fill="Probability of\nHeart Disease") +
+  theme(legend.position="bottom")
+legend <- get_legend(p1)
+p1 <- p1 + theme(legend.position="none")
+
+p2 <- ggplot(fake_data, aes(x=age, y=bmi) ) +
+  geom_tile(aes(fill=prob_heart_disease)) +
+  scale_fill_continuous(type="gradient", low="gray90", high="gray10") +
+  geom_jitter(data=framingham, aes(fill=chdfate), shape=21, size=0.9,  ) +
+  theme_bw() + 
+  theme(legend.position="none") +
+  labs(x="Age (years)", y="BMI", fill="Heart Disease")
+library(gridExtra)
+gridExtra::grid.arrange(p1, p2, legend, ncol=2, nrow=2,
+                        layout_matrix=rbind(c(1,2),c(3,3)),
+                        widths=c(2.7,2.7),heights=c(2.5, 0.3) )
+```
+
+The plot on the left provides the predicted probabilities for all age and BMI values in the scope of the data (at least marginally). The plot on the right includes the true data values overlayed on the predicted values. You should note that the model predicts those with really high ages and large BMI values to see a decrease in the prevalence of heart disease. Also, there is an individual aged about 60 with a BMI of about 50 who does not have heart disease. 
+
+How would you explain this counterintuitive result? Please answer by referring to statistical material previously covered in this class (hint: revisit some topics in regression, including module 08).
+
+**ANSWER HERE** 
+
+
+
